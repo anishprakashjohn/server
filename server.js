@@ -8,7 +8,7 @@ const {ObjectID} = require('mongodb');
 var {mongoose} = require ('./db/mongoose.js');
 var {DocumentHub} = require ('./models/documentHub.js');
 var {User} = require ('./models/user.js');
-var {authenticate} = require('./middleware/authenticate');
+// var {authenticate} = require('./middleware/authenticate');
 
 var app  = express ();
 const port = process.env.PORT;
@@ -111,15 +111,41 @@ app.post('/users', (req,res)=>{
   }). then((token)=>{
     res.header('x-auth',token).send(user);
   }).catch ((e)=>{
-    console.log(e);
+
     res.status(400).send(e);
   });
 });
 
-
-
+var authenticate = (req,res, next) =>{
+  var token = req.header('x-auth');
+  User.findByToken(token).then((user)=>{
+    if(!user){
+      return Promise.reject();
+    }
+    req.user = user;
+    req.token = token;
+    next();
+  }).catch((e) =>{
+    res.status(401).send();
+  });
+};
+//AUTHENTICATE USERS
 app.get('/users/me',authenticate, (req,res)=>{
   res.send(req.user);
+});
+
+//POST USER LOGIN
+
+app.post('/users/login', (req,res)=>{
+  var body=_.pick(req.body, ['eMail','password']);
+  var user = new User(body);
+  User.findByCredentials(body.eMail, body.password).then((user)=>{
+     return user.generateAuthToken().then((token) => {
+       res.header('x-auth',token).send(user);
+     });
+  }).catch((e)=>{
+    res.status(400).send();
+  });
 });
 
 app.listen(3000, () =>{
